@@ -42,10 +42,39 @@ export const OrderSummary = () => {
         }
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         localStorage.removeItem('orderData');
         localStorage.removeItem('orderItems');
-        navigate('/');
+        try {
+            const deleteResponse = await axios.delete('http://localhost:1323/api/v1/restaurant/order/delete/all', {
+                data: { tableId: parseInt(location.state.orderData.tableId,10) }
+            });
+    
+            if (deleteResponse.data.code === "S0000") {
+                console.log('Orders deleted successfully.');
+                console.log(deleteResponse.data)
+                const updateResponse = await axios.patch('http://localhost:1323/api/v1/restaurant/table/update', {
+                    tableId: parseInt(location.state.orderData.tableId,10),
+                    tableStatus: 'available'
+                });
+    
+                if (updateResponse.data.code === "S0000") {
+                    console.log('Table status updated to available.');
+                    console.log(updateResponse.data)
+                } else {
+                    console.error('Failed to update table status.');
+                    console.log(updateResponse.data)
+                }
+            } else {
+                console.error('Failed to delete orders.');
+                console.log(deleteResponse.data)
+            }
+    
+            navigate('/');
+        } catch (err) {
+            console.error('Error while logging out:', err);
+            console.log(err.response.data)
+        }
     };
 
     const handleAddQuantity = (menuItemId) => {

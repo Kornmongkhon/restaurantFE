@@ -36,8 +36,39 @@ export const ViewOrder = () => {
             delayFetchOrder();
         }
     }, [location]);
-    const handleLogout = () => {
-        navigate('/');
+    const handleLogout = async () => {
+        localStorage.removeItem('orderData');
+        localStorage.removeItem('orderItems');
+        try {
+            const deleteResponse = await axios.delete('http://localhost:1323/api/v1/restaurant/order/delete/all', {
+                data: { tableId: parseInt(location.state.tableId, 10) }
+            });
+
+            if (deleteResponse.data.code === "S0000") {
+                console.log('Orders deleted successfully.');
+                console.log(deleteResponse.data)
+                const updateResponse = await axios.patch('http://localhost:1323/api/v1/restaurant/table/update', {
+                    tableId: parseInt(location.state.tableId, 10),
+                    tableStatus: 'available'
+                });
+
+                if (updateResponse.data.code === "S0000") {
+                    console.log('Table status updated to available.');
+                    console.log(updateResponse.data)
+                } else {
+                    console.error('Failed to update table status.');
+                    console.log(updateResponse.data)
+                }
+            } else {
+                console.error('Failed to delete orders.');
+                console.log(deleteResponse.data)
+            }
+
+            navigate('/');
+        } catch (err) {
+            console.error('Error while logging out:', err);
+            console.log(err.response.data)
+        }
     };
     const fetchOrder = async () => {
         try {
@@ -139,6 +170,7 @@ export const ViewOrder = () => {
                 showAlerts('Thank you for your feedback!', 'success', 'Success');
                 setRatings((prev) => ({ ...prev, [orderId]: 0 })); // Reset rating
                 setComments((prev) => ({ ...prev, [orderId]: '' })); // Reset comment
+                setRatingDisabled((prev) => ({ ...prev, [orderId]: true }));
             } else {
                 if (response.data.message === "Invalid request, Order has already been reviewed.") {
                     setRatingDisabled((prev) => ({ ...prev, [orderId]: true })); // Disable if already reviewed
@@ -260,31 +292,31 @@ export const ViewOrder = () => {
                                             )}
                                         </CardActions>
                                         {order.status === 'paid' && !ratingDisabled[order.orderId] && (
-    <Box sx={{ padding: 2 }}>
-        <Typography variant="body1">Rate your experience:</Typography>
-        <Rating
-            name={`rating-${order.orderId}`} // แก้ไขจาก rating-${order.orderId} เป็น `rating-${order.orderId}`
-            value={ratings[order.orderId] || 0}
-            onChange={(event, newValue) => handleRatingChange(order.orderId, newValue)}
-        />
-        <TextField
-            label="Comment"
-            variant="outlined"
-            value={comments[order.orderId] || ''}
-            onChange={(event) => handleCommentChange(order.orderId, event.target.value)}
-            fullWidth
-            sx={{ marginTop: 1 }}
-        />
-        <Button
-            variant="contained"
-            color="primary"
-            onClick={() => submitRating(order.orderId)}
-            sx={{ marginTop: 1 }}
-        >
-            Submit
-        </Button>
-    </Box>
-)}
+                                            <Box sx={{ padding: 2 }}>
+                                                <Typography variant="body1">Rate your experience:</Typography>
+                                                <Rating
+                                                    name={`rating-${order.orderId}`}
+                                                    value={ratings[order.orderId] || 0}
+                                                    onChange={(event, newValue) => handleRatingChange(order.orderId, newValue)}
+                                                />
+                                                <TextField
+                                                    label="Comment"
+                                                    variant="outlined"
+                                                    value={comments[order.orderId] || ''}
+                                                    onChange={(event) => handleCommentChange(order.orderId, event.target.value)}
+                                                    fullWidth
+                                                    sx={{ marginTop: 1 }}
+                                                />
+                                                <Button
+                                                    variant="contained"
+                                                    color="primary"
+                                                    onClick={() => submitRating(order.orderId)}
+                                                    sx={{ marginTop: 1 }}
+                                                >
+                                                    Submit
+                                                </Button>
+                                            </Box>
+                                        )}
                                     </Card>
                                 </Grid>
                             ))}

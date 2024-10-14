@@ -29,7 +29,7 @@ export const Page = () => {
     if (!error && tableNumber !== '') {
       setIsButtonDisabled(true);
       setCountdown(3);
-  
+
       try {
         const response = await axios.post('http://localhost:1323/api/v1/restaurant/table', {
           tableId: parseInt(tableNumber)
@@ -40,7 +40,23 @@ export const Page = () => {
           setAlertSeverity('success');
           setAlertTitle('Success');
           setShowAlert(true);
-  
+          try {
+            const updateResponse = await axios.patch('http://localhost:1323/api/v1/restaurant/table/update', {
+              tableId: parseInt(tableNumber),
+              tableStatus: 'occupied',
+            });
+
+            if (updateResponse.data.code === "S0000") {
+              console.log('Table status updated to occupied.');
+              console.log(updateResponse.data)
+            } else {
+              console.error('Failed to update table status.');
+              console.log(updateResponse.data)
+            }
+          } catch (updateError) {
+            console.error('Error updating table status:', updateError);
+            console.log(updateError.updateResponse.data)
+          }
           const timer = setInterval(() => {
             setCountdown((prev) => {
               if (prev <= 1) {
@@ -50,11 +66,11 @@ export const Page = () => {
               return prev - 1;
             });
           }, 1000);
-  
+
           setTimeout(() => {
             navigate('/get/menu', { state: { tableNumber } });
           }, 3000);
-  
+
           return () => clearInterval(timer); //clear timer
         }
       } catch (error) {
@@ -82,7 +98,7 @@ export const Page = () => {
       setShowAlert(true);
     }
   };
-  
+
 
   const handleCloseAlert = () => {
     setShowAlert(false);

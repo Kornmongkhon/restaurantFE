@@ -31,10 +31,40 @@ export const GetMenu = () => {
         }
     }, [location]);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         setOrderItems([]);
         localStorage.removeItem('orderItems');
-        navigate('/');
+        try {
+            const deleteResponse = await axios.delete('http://localhost:1323/api/v1/restaurant/order/delete/all', {
+                data: { tableId: parseInt(location.state.tableNumber,10) }
+            });
+    
+            if (deleteResponse.data.code === "S0000") {
+                console.log('Orders deleted successfully.');
+                console.log(deleteResponse.data)
+                // หลังจากลบคำสั่งซื้อสำเร็จ เรียก API เพื่ออัปเดตสถานะโต๊ะเป็น 'available'
+                const updateResponse = await axios.patch('http://localhost:1323/api/v1/restaurant/table/update', {
+                    tableId: parseInt(location.state.tableNumber,10),
+                    tableStatus: 'available'
+                });
+    
+                if (updateResponse.data.code === "S0000") {
+                    console.log('Table status updated to available.');
+                    console.log(updateResponse.data)
+                } else {
+                    console.error('Failed to update table status.');
+                    console.log(updateResponse.data)
+                }
+            } else {
+                console.error('Failed to delete orders.');
+                console.log(deleteResponse.data)
+            }
+    
+            navigate('/');
+        } catch (err) {
+            console.error('Error while logging out:', err);
+            console.log(err.response.data)
+        }
     };
 
     const fetchMenu = async () => {
