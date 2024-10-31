@@ -13,6 +13,7 @@ export const Page = () => {
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const navigate = useNavigate();
+  const [checkinId, setCheckinId] = useState(null);
 
   const handleChange = (e) => {
     const value = e.target.value;
@@ -49,6 +50,29 @@ export const Page = () => {
             if (updateResponse.data.code === "S0000") {
               console.log('Table status updated to occupied.');
               console.log(updateResponse.data)
+
+              try {
+                const checkinResponse = await axios.post('http://localhost:1323/api/v1/restaurant/checkin', {
+                  tableId: parseInt(tableNumber),
+                });
+
+                if (checkinResponse.data.code === "S0000") {
+                  console.log('Check-in successful');
+                  console.log(checkinResponse.data);
+                  const id = parseInt(checkinResponse.data.data.checkinId, 10);
+                  console.log("CheckinId : ", id)
+                  setCheckinId(id);
+                  setTimeout(() => {
+                    navigate('/get/menu', { state: { tableNumber, checkinId: id } });
+                  }, 3000);
+                } else {
+                  console.error('Check-in failed');
+                  console.log(checkinResponse.data);
+                }
+              } catch (checkinError) {
+                console.error('Error during check-in:', checkinError);
+                console.log(checkinError.checkinResponse.data)
+              }
             } else {
               console.error('Failed to update table status.');
               console.log(updateResponse.data)
@@ -67,14 +91,10 @@ export const Page = () => {
             });
           }, 1000);
 
-          setTimeout(() => {
-            navigate('/get/menu', { state: { tableNumber } });
-          }, 3000);
-
           return () => clearInterval(timer); //clear timer
         }
       } catch (error) {
-        console.log(error.response.data)
+        console.log(error.response)
         if (error.response) {
           // มีการตอบกลับจาก backend แต่เกิดข้อผิดพลาด
           setAlertMessage(error.response.data.message || 'Error occurred.');
@@ -113,6 +133,10 @@ export const Page = () => {
       return () => clearTimeout(timer); // clear timer
     }
   }, [showAlert]);
+
+  useEffect(() => {
+    console.log("Updated CheckinId: ", checkinId); // Log the updated checkinId
+  }, [checkinId]);
 
   return (
     <Container>

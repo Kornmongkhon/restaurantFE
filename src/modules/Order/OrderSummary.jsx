@@ -19,6 +19,7 @@ export const OrderSummary = () => {
     const [alertTitle, setAlertTitle] = useState('info');
     const [showAlert, setShowAlert] = useState(false);
     const [orderData, setOrderData] = useState(location.state?.orderData || {});
+    const checkinId = location.state?.checkinId;
 
     useEffect(() => {
         // Check table id
@@ -46,34 +47,54 @@ export const OrderSummary = () => {
         localStorage.removeItem('orderData');
         localStorage.removeItem('orderItems');
         try {
-            const deleteResponse = await axios.delete('http://localhost:1323/api/v1/restaurant/order/delete/all', {
-                data: { tableId: parseInt(location.state.orderData.tableId,10) }
+            // First, call the checkout API
+            const checkoutResponse = await axios.patch('http://localhost:1323/api/v1/restaurant/checkout', {
+                tableId: parseInt(location.state.orderData.tableId, 10)
             });
-    
-            if (deleteResponse.data.code === "S0000") {
-                console.log('Orders deleted successfully.');
-                console.log(deleteResponse.data)
+
+            if (checkoutResponse.data.code === "S0000") {
+                console.log('Checkout successful.');
+                console.log(checkoutResponse.data);
+
+                // Next, update the table status to 'available'
                 const updateResponse = await axios.patch('http://localhost:1323/api/v1/restaurant/table/update', {
-                    tableId: parseInt(location.state.orderData.tableId,10),
+                    tableId: parseInt(location.state.orderData.tableId, 10),
                     tableStatus: 'available'
                 });
-    
+
                 if (updateResponse.data.code === "S0000") {
                     console.log('Table status updated to available.');
-                    console.log(updateResponse.data)
+                    console.log(updateResponse.data);
+
+                    // Finally, delete all orders
+                    const deleteResponse = await axios.delete('http://localhost:1323/api/v1/restaurant/order/delete/all', {
+                        data: {
+                            tableId: parseInt(location.state.tableId, 10),
+                            checkinId: parseInt(checkinId, 10)
+                        }
+                    });
+
+                    if (deleteResponse.data.code === "S0000") {
+                        console.log('Orders deleted successfully.');
+                        console.log(deleteResponse.data);
+                    } else {
+                        console.error('Failed to delete orders.');
+                        console.log(deleteResponse.data);
+                    }
                 } else {
                     console.error('Failed to update table status.');
-                    console.log(updateResponse.data)
+                    console.log(updateResponse.data);
                 }
             } else {
-                console.error('Failed to delete orders.');
-                console.log(deleteResponse.data)
+                console.error('Failed to complete checkout.');
+                console.log(checkoutResponse.data);
             }
-    
+            localStorage.removeItem('checkinId');
+            // Redirect after all operations
             navigate('/');
         } catch (err) {
             console.error('Error while logging out:', err);
-            console.log(err.response.data)
+            console.log(err.response.data);
         }
     };
 
@@ -136,7 +157,7 @@ export const OrderSummary = () => {
                 localStorage.removeItem('orderData');
                 localStorage.removeItem('orderItems');
                 setTimeout(() => {
-                    navigate(`/get/menu`, { state: { tableNumber: orderData.tableId } });
+                    navigate(`/get/menu`, { state: { tableNumber: orderData.tableId, checkinId:checkinId  } });
                 }, 3000);
             }
         } catch (err) {
@@ -199,60 +220,60 @@ export const OrderSummary = () => {
                     </Box>
 
                     {/* Show Order Items */}
-                {loading ? (
-                    <CircularProgress />
-                ) : error ? (
-                    <Typography color="error">{error}</Typography>
-                ) : (
-                    <>
-                        <List>
-                            {orderData.menuItems.map((item, index) => (
-                                <ListItem key={index}>
-                                    <Card sx={{ display: 'flex', alignItems: 'center', mb: 2, width: 500 }}>
-                                        <CardMedia
-                                            component="img"
-                                            sx={{ width: 100, height: 100, marginRight: 2 }}
-                                            image={item.base64}    // แสดงรูปเมนู
-                                            alt={item.name}
-                                        />
-                                        <ListItemText
-                                            primary={`Menu: ${item.name}`}  // แสดงชื่อเมนู
-                                            secondary={`Price: ฿${item.price.toFixed(2)}`}
-                                        />
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <IconButton
-                                                aria-label="remove"
-                                                onClick={() => handleRemoveQuantity(item.menuItemId)}
-                                            >
-                                                <RemoveIcon />
-                                            </IconButton>
-                                            <Typography>{item.quantity}</Typography>
-                                            <IconButton
-                                                aria-label="add"
-                                                onClick={() => handleAddQuantity(item.menuItemId)}
-                                            >
-                                                <AddIcon />
-                                            </IconButton>
-                                        </Box>
-                                    </Card>
-                                </ListItem>
-                            ))}
-                        </List>
-                        <Typography variant="h6">
-                            Total Price: ฿{orderData.totalPrice}
-                        </Typography>
+                    {loading ? (
+                        <CircularProgress />
+                    ) : error ? (
+                        <Typography color="error">{error}</Typography>
+                    ) : (
+                        <>
+                            <List>
+                                {orderData.menuItems.map((item, index) => (
+                                    <ListItem key={index}>
+                                        <Card sx={{ display: 'flex', alignItems: 'center', mb: 2, width: 500 }}>
+                                            <CardMedia
+                                                component="img"
+                                                sx={{ width: 100, height: 100, marginRight: 2 }}
+                                                image={item.base64}    // แสดงรูปเมนู
+                                                alt={item.name}
+                                            />
+                                            <ListItemText
+                                                primary={`Menu: ${item.name}`}  // แสดงชื่อเมนู
+                                                secondary={`Price: ฿${item.price.toFixed(2)}`}
+                                            />
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <IconButton
+                                                    aria-label="remove"
+                                                    onClick={() => handleRemoveQuantity(item.menuItemId)}
+                                                >
+                                                    <RemoveIcon />
+                                                </IconButton>
+                                                <Typography>{item.quantity}</Typography>
+                                                <IconButton
+                                                    aria-label="add"
+                                                    onClick={() => handleAddQuantity(item.menuItemId)}
+                                                >
+                                                    <AddIcon />
+                                                </IconButton>
+                                            </Box>
+                                        </Card>
+                                    </ListItem>
+                                ))}
+                            </List>
+                            <Typography variant="h6">
+                                Total Price: ฿{orderData.totalPrice}
+                            </Typography>
 
-                        {/* ปุ่ม Confirm */}
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={handleConfirmOrder}
-                            sx={{ mt: 2 }}
-                        >
-                            Confirm Order
-                        </Button>
-                    </>
-                )}
+                            {/* ปุ่ม Confirm */}
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                onClick={handleConfirmOrder}
+                                sx={{ mt: 2 }}
+                            >
+                                Confirm Order
+                            </Button>
+                        </>
+                    )}
                 </Box>
 
                 {/* Alert */}

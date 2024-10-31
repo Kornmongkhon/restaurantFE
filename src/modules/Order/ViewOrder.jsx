@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import {
     Dialog, DialogActions, DialogContent, DialogTitle, Box, Container, Typography, Button,
     CircularProgress, Card, CardContent, CardActions, Alert, AlertTitle, Rating, TextField,
-    Grid
+    Grid, useTheme
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -10,6 +10,7 @@ import axios from 'axios';
 export const ViewOrder = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const theme = useTheme();
     const [orderDetails, setOrderDetails] = useState(null)
     const [orderItems, setOrderItems] = useState([]);
     const [openDialog, setOpenDialog] = useState(false);
@@ -23,6 +24,7 @@ export const ViewOrder = () => {
     const [ratings, setRatings] = useState({}); // State to store ratings
     const [comments, setComments] = useState({});
     const [ratingDisabled, setRatingDisabled] = useState({});
+    const checkinId = location.state?.checkinId;
     useEffect(() => {
         // check table id
         if (!location.state || !location.state.tableId) {
@@ -39,14 +41,18 @@ export const ViewOrder = () => {
     const handleLogout = async () => {
         localStorage.removeItem('orderData');
         localStorage.removeItem('orderItems');
+        console.log("Checkin ID : ", checkinId)
         try {
-            const deleteResponse = await axios.delete('http://localhost:1323/api/v1/restaurant/order/delete/all', {
-                data: { tableId: parseInt(location.state.tableId, 10) }
+            // First, call the checkout API
+            const checkoutResponse = await axios.patch('http://localhost:1323/api/v1/restaurant/checkout', {
+                tableId: parseInt(location.state.tableId, 10)
             });
 
-            if (deleteResponse.data.code === "S0000") {
-                console.log('Orders deleted successfully.');
-                console.log(deleteResponse.data)
+            if (checkoutResponse.data.code === "S0000") {
+                console.log('Checkout successful.');
+                console.log(checkoutResponse.data);
+
+                // Next, update the table status to 'available'
                 const updateResponse = await axios.patch('http://localhost:1323/api/v1/restaurant/table/update', {
                     tableId: parseInt(location.state.tableId, 10),
                     tableStatus: 'available'
@@ -54,20 +60,37 @@ export const ViewOrder = () => {
 
                 if (updateResponse.data.code === "S0000") {
                     console.log('Table status updated to available.');
-                    console.log(updateResponse.data)
+                    console.log(updateResponse.data);
+
+                    // Finally, delete all orders
+                    const deleteResponse = await axios.delete('http://localhost:1323/api/v1/restaurant/order/delete/all', {
+                        data: {
+                            tableId: parseInt(location.state.tableId, 10),
+                            checkinId: parseInt(checkinId, 10)
+                        }
+                    });
+
+                    if (deleteResponse.data.code === "S0000") {
+                        console.log('Orders deleted successfully.');
+                        console.log(deleteResponse.data);
+                    } else {
+                        console.error('Failed to delete orders.');
+                        console.log(deleteResponse.data);
+                    }
                 } else {
                     console.error('Failed to update table status.');
-                    console.log(updateResponse.data)
+                    console.log(updateResponse.data);
                 }
             } else {
-                console.error('Failed to delete orders.');
-                console.log(deleteResponse.data)
+                console.error('Failed to complete checkout.');
+                console.log(checkoutResponse.data);
             }
-
+            localStorage.removeItem('checkinId');
+            // Redirect after all operations
             navigate('/');
         } catch (err) {
             console.error('Error while logging out:', err);
-            console.log(err.response.data)
+            console.log(err.response.data);
         }
     };
     const fetchOrder = async () => {
@@ -78,8 +101,11 @@ export const ViewOrder = () => {
             console.log(payload);
             const response = await axios.post('http://localhost:1323/api/v1/restaurant/order/history', payload);
             console.log(response.data);
-            if (response.data.code === "S0000") {
+            if (response.data.code === "S0000" && response.data.data.length > 0) {
                 setOrderItems(response.data.data);
+            } else {
+                setOrderItems([]); // Set an empty array if no orders are found
+                setError('No orders found for this table.');
             }
         } catch (error) {
             setError(error.response.data.message);
@@ -236,7 +262,7 @@ export const ViewOrder = () => {
                             Restaurant Go
                         </Typography>
                         <Typography variant="h6" align="center">
-                            {location.state && <p>Table Number : {location.state.tableId}</p>}
+                            Table Number : {location.state.tableId}
                         </Typography>
                         <Button
                             variant="contained"
@@ -252,6 +278,8 @@ export const ViewOrder = () => {
                         <CircularProgress />
                     ) : error ? (
                         <Typography color="error">{error}</Typography>
+                    ) : orderItems.length === 0 ? ( // Check if orderItems is empty
+                        <Typography>No orders found for this table.</Typography>
                     ) : (
                         <Grid container spacing={2}>
                             {orderItems.map((order, index) => (
@@ -265,10 +293,10 @@ export const ViewOrder = () => {
                                                 Table ID : {order.tableId}
                                             </Typography>
                                             <Typography display='flex'>
-                                                <Typography color='secondary' sx={{ marginRight: 1 }}>Status :</Typography>
-                                                <Typography sx={{ color: getStatusColor(order.status) }}>{order.status}</Typography>
+                                                <Typography color='secondary' sx={{ marginRight: 1 }} component="span">Status :</Typography>
+                                                <Typography sx={{ color: getStatusColor(order.status) }} component="span">{order.status}</Typography>
                                             </Typography>
-                                            <Typography variant="body2">
+                                            <Typography >
                                                 Created At: {new Date(order.createdAt).toLocaleString()}
                                             </Typography>
                                         </CardContent>
@@ -293,7 +321,7 @@ export const ViewOrder = () => {
                                         </CardActions>
                                         {order.status === 'paid' && !ratingDisabled[order.orderId] && (
                                             <Box sx={{ padding: 2 }}>
-                                                <Typography variant="body1">Rate your experience:</Typography>
+                                                <Typography variant="h6">Rate your experience:</Typography>
                                                 <Rating
                                                     name={`rating-${order.orderId}`}
                                                     value={ratings[order.orderId] || 0}
@@ -322,6 +350,7 @@ export const ViewOrder = () => {
                             ))}
                         </Grid>
                     )}
+
                 </Box>
             </Container>
 
